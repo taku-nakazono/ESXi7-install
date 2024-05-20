@@ -1,0 +1,523 @@
+Copyright(c) 2013 - 2022 Intel Corporation
+
+This release includes the unified i40en VMware ESX Driver for Intel(R)
+Ethernet Controllers X710, XL710, XXV710, and X722 family
+
+Driver version: 2.2.7.0
+
+Supported ESXi release: 7.0
+
+=================================================================================
+
+Contents
+--------
+
+- Important Notes
+- Supported Features
+- New Features
+- New Hardware Supported
+- Physical Hardware Configuration Maximums
+- Bug Fixes
+- Known Issues and Workarounds
+- Command Line Parameters
+- Previously Released Versions
+
+=================================================================================
+
+Important Notes:
+----------------
+
+- VMware vSphere Hypervisor (ESXi) 7.0 Support:
+
+   Added VMware vSphere Hypervisor (ESXi) 7.0 support. VMware vSphere
+   Hypervisor (ESXi) 7.0 introduces changes related to:
+
+   - How SR-IOV VFs are created.
+   - How driver module parameters function.
+   - How driver modules are upgraded.
+
+   Consult VMware vSphere Hypervisor (ESXi) 7.0 release notes for a complete
+   list of new features and changes. To avoid serious problems, carefully review
+   VMware hardware requirements before installing or upgrading to VMware vSphere
+   Hypervisor (ESXi) 7.0.
+
+- Upgrading from VMware vSphere Hypervisor (ESXi) 6.5 to 7.0:
+
+   Uninstall device drivers  for Intel Ethernet Adapters from VMware vSphere
+   Hypervisor (ESXi) 6.5 host prior to starting VMware vSphere Hypervisor
+   (ESXi) 7.0 upgrade process (failing to do so causes device drivers to stop
+   loading on VMware vSphere Hypervisor (ESXi) 7.0). Upgrade to VMware vSphere
+   Hypervisor (ESXi) 7.0. Install device drivers compiled with VMware vSphere
+   Hypervisor (ESXi) 7.0 DDK.
+
+   To download device drivers for VMware vSphere Hypervisor (ESXi) 7.0, visit
+   the VMware VCG  download site at:
+
+   https://www.vmware.com/resources/compatibility/search.php?deviceCategory=io.
+
+- SR-IOV Virtual Function (VF) Creation:
+
+   VMware vSphere Hypervisor (ESXi) 7.0 WebGUI allows users to instantiate VFs
+   for each Network Adapter port. Creating VFs using VMware vSphere Hypervisor
+   (ESXi) 7.0 WebGUI triggers immediate device driver reload that removes other
+   device driver settings, like LLDP, RSS, VMDQ, etc. that might be enabled.
+   This might cause loss of network connectivity. The device driver might fail
+   to reload if SR-IOV VFs are configured and at least one VF is assigned to an
+   active VM. Reboot the server after creating VFs to avoid this scenario.
+   VMware vSphere Hypervisor (ESXi) 7.0 ignores VF creation using "max_vfs"
+   module parameter if the VFs are created using VMware vSphere Hypervisor
+   (ESXi) 7.0 WebGUI. For more details reference:
+   https://docs.vmware.com/en/VMware-vSphere/7.0/rn/vsphere-esxi-vcenter-server-70-release-notes.html
+
+- Receive Side Scaling (RSS):
+
+   To enable parallel traffic processing, RSS allows the driver to spread
+   ingress network traffic over multiple receive queues associated with
+   individual CPUs. RSS is enabled by default. RSS can be managed using the
+   "esxcfg-module" command with RSS and DRSS parameters. If both parameters
+   are set on X710/XXV710/XL710 Adapters, RSS (NetQueue RSS) has a precedence
+   over DRSS (Default Queue RSS). On X722 products, both RSS (NetQueue RSS) and
+   DRSS (DevQueue RSS) modes can be enabled at the same time.
+
+  NOTE: Reboot is needed after setting RSS mode.
+
+- Recovery Mode
+
+   X710/XXV710/XL710 and X722 products might enter "Recovery Mode" due to
+   a corrupted NVM or an interruption, or due to power loss during
+   the NVM update process. Try to reset the NVM back to factory defaults using
+   the "NVM Update Utility", then try updating the NVM image again.
+   Wake on LAN (WoL) is disabled during recovery mode for X722 adapters.
+
+   NOTE: To completely reset the firmware and hardware, power cycle the system
+   after using Recovery Mode.
+
+- Backplane devices
+
+   Backplane devices are operating in auto mode only. Therefore, the user
+   cannot manually overwrite speed settings.
+
+- VLAN Tag Stripping Control for VF drivers
+
+   The VLAN Tag Stripping feature is enabled by default, but can be disabled
+   by the VF driver. On a Linux VM with the iavf (VF) device driver, use
+   the following command to control the feature:
+
+   ethtool --offload <IF> rxvlan on/off
+
+   NOTE: Disabling VLAN Tag Stripping is only applicable to Virtual Guest
+   Tagging (VGT) configurations. The VLAN Tag Stripping feature is currently
+   not available on Windows VF drivers.
+
+- Malicious Driver Detection (MDD)
+
+   The Malicious Driver Detection feature protects network adapters from
+   malformed packets or other hostile actions that might be performed by
+   device drivers (accidentally or deliberately). Virtual Function (VF)
+   should be assigned as an SR-IOV Passthrough Adapter to a Virtual Machine
+   (VM). Refer to available VMware vSphere documentation for information
+   about device/hardware assignment to the VM using PCI Passthrough (also
+   known as DirectPath IO) vs SR-IOV Passthrough Adapter.
+
+   Assigning a VF to a VM as a PCI Passthrough device and updating some
+   network settings (such as MTU size) might result in the following:
+
+   - The driver reporting an MDD event in the kernel log.
+   - The driver resetting the port.
+   - The network connection incurring some packet loss while the port resets.
+
+   In case of a Malicious Driver event detection, the driver reacts in one
+   of two ways:
+
+   - If the source of the MDD event was the i40en driver (Physical Function
+     [PF] driver), hardware is reset.
+   - If the source of the MDD event was the Virtual Machine's SR-IOV driver
+     (Virtual Function [VF] driver), the suspected VF is disabled after the
+     4th such event - malicious VM SR-IOV adapter becomes unavailable. To
+     bring it back, VM reboot or VF driver reload is required.
+
+- LLDP Agent
+
+   Link Layer Discovery Protocol (LLDP) supports Intel X710/XXV710/XL710
+   adapters with FW 6.0 and later as well as X722 adapters with FW 3.10
+   and later. Set LLDP driver load param to allow or disallow LLDP frames
+   forwarded to the network stack.
+
+   - LLDP agent is enabled in firmware by default (Default FW setting).
+   - Set LLDP=0 to disable LLDP agent in firmware.
+   - Set LLDP=1 to enable LLDP agent in firmware.
+   - Set LLDP to anything other than 0 or 1 will fall back to the default
+     setting (LLDP enabled in firmware).
+   - LLDP agent is always enabled in firmware when MFP (Multi Functional
+     Port, i.e. NPAR) is enabled, regardless of the driver parameter LLDP
+     setting.
+
+   When the LLDP agent is enabled in firmware, the ESXi OS will not receive
+   LLDP frames and Link Layer Discovery Protocol information will not be
+   available on the physical adapter inside ESXi.
+
+   NOTE: The LLDP driver module parameter is an array of values. Each value
+   represents LLDP agent settings for a physical port.
+   Refer to "Command Line Parameters" section for suggestions on how to set
+   driver module parameters.
+
+- Updating Firmware and ESXi Quick Boot
+
+   Updating an adapter's firmware requires a full reboot or power-cycle to
+   finish the update process and load the new firmware. To perform a full
+   reboot, Quick Boot must be disabled. Otherwise, rebooting the system with
+   Quick Boot enabled will not finish the update process.
+
+   - NVM Update Tool Quick Usage Guide:
+
+   https://www.intel.com/content/www/us/en/embedded/products/networking/nvm-update-tool-vmware-esx-quick-usage-guide.html
+
+   - Quick Boot Full Description here:
+
+   https://kb.vmware.com/s/article/52477
+
+- Trusted Virtual Function
+
+   Setting a Virtual Function (VF) to be trusted using the Intel extended
+   esxcli tool (intnetcli) allows the VF to request unicast/multicast
+   promiscuous mode. Additionally, a trusted mode VF can request more MAC
+   addresses and VLANs, subject to hardware limitations. Using intnetcli,
+   it is required to set a VF to the desired mode every time after rebooting a
+   VM or host since ESXi kernel may assign a different VF to the VM after
+   reboot. It is possible to set all VFs trusted, persistently between VM or
+   host reboot/power cycle by setting 'trust_all_vfs' module parameter.
+
+   To enable trusted virtual function use:
+   esxcfg-module -s trust_all_vfs=1 i40en, or
+   esxcli system module parameters set -m i40en -p trust_all_vfs=1
+
+   To disable trusted virtual function (default setting) use:
+   esxcfg-module -s trust_all_vfs=0 i40en, or
+   esxcli system module parameters set -m i40en -p trust_all_vfs=0
+
+   NOTE1: Above commands will replace current module parameter settings. Please
+   refer to "Command Line Parameters" section on how to append new value to current
+   settings.
+
+   NOTE2: Using this feature may impact performance.
+
+
+Native Mode Supported Features:
+-------------------------------
+
+- Receive Side Scaling (RSS)
+- Poll Mode VF Driver Support
+- Rx, Tx, TSO checksum offload
+- Netqueue (VMDQ)
+- VxLAN Offload
+- Geneve Offload
+- Hardware VLAN filtering
+- Rx Hardware VLAN stripping
+- Tx Hardware VLAN inserting
+- Interrupt moderation
+- SR-IOV (supports four queues per VF, VF MTU, and VF VLAN)
+        Valid range for max_vfs
+        1-32 (4 port devices)
+        1-64 (2 port devices)
+        1-128 (1 port devices)
+- Link Auto-negotiation
+- Flow Control
+- Management APIs for CIM Provider, OCSD/OCBB
+- Firmware Recovery Mode
+- VLAN Tag Stripping Control for VF drivers
+- Trusted Virtual Function
+- Added VF support for 2.5G and 5G link speeds
+- Added PHY power off feature during link down
+- VF can stay Trusted persistently between VM reboots
+- Wake on LAN (WoL) support
+- Complete port shut down from OS (requires UEFI settings)
+  for selected devices.
+- Simplified hardware access for NVM Update
+
+
+ENS Polling Mode Supported Features:
+------------------------------------
+
+- Tx/Rx burst
+- Multi-speeds (40G / 25G / 10G / 5G / 2.5G / 1G / 100M)
+- TCP / UDP Checksum Offload
+- IP Checksum not offloaded
+- TSO (IPv4 and IPv6)
+- Jumbo Frame (9k max)
+- Netqueue (VMDq)
+- VLAN inserting
+- VLAN stripping
+- VLAN filtering
+- Get/Set link state
+- Get uplink stats
+- Get private stats
+- Get Netqueue stats
+- Geneve Offload
+- Force phy power up/down on management link state change
+- Recovery mode
+- Flow Processing Offload (FPO)
+- Zero copy mbuf support
+- Link Layer Discovery Protocol (LLDP) support
+- Running an Intel device management tool (i.e. NVM update) while uplink is connected to ENS switch
+- Intnet cli support for ENS driver
+
+New Features:
+-------------
+
+- None
+
+
+New Hardware Supported:
+-----------------------
+
+- Added new devices support for specific OEMs:
+      - Intel(R) Ethernet Network Adapter I710-T4L
+      - Intel(R) Ethernet Network Adapter I710-T4L for OCP 3.0
+
+
+Physical Hardware Configuration Maximums:
+-----------------------------------------
+
+40Gb Ethernet Ports (Intel) = 4
+25Gb Ethernet Ports (Intel) = 4
+10Gb Ethernet Ports (Intel) = 16
+
+
+Bug Fixes:
+----------
+
+- Fixed log message when module doesn't meet thermal requirements
+- Fixed issue with pruning Tx flow control frames during ENS configuration
+- Fixed issues with NetQRss utilizing only 1 queue
+- Fixed issue with ARP replies not being received on X710 interface
+- Fixed port doesn't change state from down to up after driver reload, when using X722 interface
+- Fixed wrong default value of Link Privilege on some interfaces, when Total Link Port Shutdown is enabled in BIOS
+- Fixed AOC SFP28 cable not being recognizable
+- Fixed issue with possibility of adding more than 8 filters on untrusted VF (Virtual Function)
+- Fixed issue with driver showing active VFs on port which is working in ENS mode
+- Removed multiple Link down messages in system log when user manually forces link state
+- Fixed misleading information in system log that Default Queue RSS is enabled and disabled after driver reload
+- Fixed validation of driver module parameters
+- Fixed DDP package removal after driver reloading or switching to ENS mode
+- Fixed incorrect advertising of link mode with DA copper cable
+- Removed 25G speed being advertised for LR SFP+ module as it is not supported
+- Fixed system log information about maximum number of RSS queues (maxNumRssQ parameter)
+- Fixed issue with redundant VIB files left after upgrading from ENS to unified driver.
+- Fixed traffic issues in ENS mode
+
+
+Known Issues and Workarounds:
+-----------------------------
+
+- VF adapter cannot receive any packet after VM reboot. The probability of
+  issue occurrence increases with the overall number of VFs and number of
+  VMs reboots.
+
+   Workaround: power off and on VMs with VFs instead of rebooting them.
+
+- ARP broadcast storm when a virtual appliance or a virtual machine acts as
+  an Ethernet bridge between multiple vSwitches.
+
+   Workaround: use the following command to turn off VMDQ Tx loopback path
+   on vmnics which are linked by the bridge:
+
+   esxcli intnet misc vmdqlb -e 0 -n vmnicX
+
+   The esxcli intnet plug-in is available at the following link:
+
+   https://downloadcenter.intel.com/download/28479
+
+- Intermittent packet drops when two management interfaces are defined.
+
+   Workaround: Switch off LLDP agent in the firmware.
+
+- Very low throughput when sending IPv6 to a Linux VM that uses a VMXNET3
+  adapter.
+
+   Workaround: Please look at the VMware Knowledge Base 2057874:
+
+   https://kb.vmware.com/s/article/2057874
+
+- Driver is unable to configure the maximum 128 Virtual Functions per
+  adapter due to the kernel limitation.
+
+   Workaround: Please look at the VMware Knowledge Base 2147604:
+
+   https://kb.vmware.com/s/article/2147604
+
+- Cannot set maximum values for VMDQ and SR-IOV VFs on a port at the same time.
+
+   Workaround: Reduce the VMDQ or max_vfs value for the port.
+
+- Setting Geneve options length larger than 124 bytes causes VLAN-tagged
+  Geneve traffic to drop.
+
+   Workaround: Don't set Geneve options length to more than 124 bytes or
+   don't assign a VLAN to Geneve tunnel.
+
+- In RHEL 7.2 an IPv6 connection persists between VF adapters after changing
+  port group VLAN mode from trunk (VGT) to port VLAN (VST).
+
+   Workaround: Upgrade to RHEL 7.3 or newer. This is a Linux kernel bug
+   that causes packets to arrive at the wrong virtual interface.
+
+- Disabling VFs due to MDD events caused by configuring VF adapters as 'PCI
+  Device' instead of 'SR-IOV Passthru Device'.
+
+   Workaround: Configure VMs with 'SR-IOV Passthru Device'.
+
+- Switching port (vmnic) of management uplink may lead to connectivity issues.
+
+   Workaround: Switch the port of management uplink back to the original one.
+
+- Offload for Geneve packets is turned on by default. Every incoming packet on
+  port 6081 is parsed as Geneve packet. Receiving regular, non-overlaid traffic
+  on this port, will cause packets to be dropped by adapter.
+
+   Workaround: Use port 6081 only for Geneve traffic.
+
+- Driver module parameters are parsed firstly by ESXi system. There is possibility
+  to provide value that is out of bound - OS will then return default value to driver.
+
+   Workaround: Verify parameter value in system log.
+
+- When trying to enable ENS on a port that has the Total Port Shutdown feature enabled the
+  link may not come up.
+
+   Workaround: None
+
+- In the event of link flap, link might go down and never come back.
+
+   Workaround: Setting the management link state up fixes it, esxcli network nic up -n vmnicxx.
+
+- Hardware has limitation of number of packets that can be processed during specified
+  period of time. VF [Virtual Function] driver that uses only 1 queue with small packet
+  sizes can significantly reduce performance of PF [Physical Function] driver or other VFs
+  during traffic with high packet rate.
+
+   Workaround: Use more queues and/or increase packet size.
+
+- There is a problem with autonegotiation between XXV710 adapter and Extreme networks
+  X670(V)-48t switch over fiber cable. Issue appears when 1G link speed is set on the
+  switch port.
+
+   Workaround: To achieve 1G link speed between the devices, use 1G SFP 1000BASE-SX
+   module type. For 10G and higher link speeds, use 10G SFP+ 10GBASE-SX module type.
+
+
+Command Line Parameters:
+------------------------
+
+Ethtool is not supported for native driver.
+Please use esxcli, vsish, or esxcfg-* to set or get the driver information, for example:
+
+Setting driver module parameter:
+
+- Setting a new driver module parameter while clearing other driver module parameters:
+  esxcli system module parameters set -m i40en -p LLDP=0
+
+- Appending a driver module parameter while leaving other driver module parameters unchanged:
+  esxcli system module parameters set -m i40en -a -p LLDP=0
+
+Get commands:
+
+- Get the driver supported module parameters
+  esxcli system module parameters list -m i40en
+
+- Get the driver info
+  esxcli network nic get -n vmnic1
+
+- Get an uplink stats
+  esxcli network nic stats -n vmnic1
+
+- Get the private stats
+  vsish -e get /net/pNics/vmnic1/stats
+
+The extended esxcli tool allows users to set a VF as trusted/untrusted, enable/disable MAC address spoof-checking, etc.
+The tool is available at the following link: https://downloadcenter.intel.com/download/28479
+
+Example commands:
+
+- Set VF 1 as trusted
+  esxcli intnet sriovnic vf -n vmnic0 -v 1 -t on
+
+- Set VF 1 as untrusted
+  esxcli intnet sriovnic vf -n vmnic0 -v 1 -t off
+
+- Enable VF spoof-check for VF 1
+  esxcli intnet sriovnic vf -v 1 -n vmnic0 -s on
+
+- Disable VF spoof-check for VF 1
+  esxcli intnet sriovnic vf -v 1 -n vmnic0 -s off
+
+- Get the current settings for VF 1
+  esxcli intnet sriovnic vf get -n vmnic0 -v 1
+
+- Turn on VMDQ Tx loopback path on vmnic0
+   esxcli intnet misc vmdqlb -e 1 -n vmnic0
+
+- Turn off VMDQ Tx loopback path on vmnic0
+   esxcli intnet misc vmdqlb -e 0 -n vmnic0
+
+DDP profiles operations:
+
+- To list all DDP profiles
+  esxcli intnet ddp list
+
+- To load DDP profile
+  esxcli intnet ddp load [cmd options]
+
+  Cmd options:
+  -p|--profile-name=<str>  DDP profile name (required).
+                           DDP package should be located at: /store/intel/i40en/ddp.
+  -n|--vmnic=<str>         vmnic name of the PF0 port (required).
+
+- To roll back recent DDP profile
+  esxcli intnet ddp rollback [cmd options]
+
+  Cmd options:
+  -n|--vmnic=<str>         vmnic name of the PF0 port (required).
+
+
+=================================================================================
+
+Previously Released Versions:
+-----------------------------
+
+- Driver Version: 2.2.4.0
+   Hardware Supported: Intel(R) Ethernet Controllers X710, XL710, XXV710, and X722 family
+   Supported ESXi releases: 6.7 and 7.0
+   New Features Supported:
+      - DDP packages support in ENS Mode
+   New Hardware Supported:
+      - Added new devices support for specific OEMs
+   Bug Fixes:
+      - Fixed typos in RSS, DRSS log messages
+      - Fixed issues with traffic when using Virtual Switch Tagging (VST) along with VLAN 51
+      - Fixed issue with not working Flow processing offload (FPO) feature
+      - Added system logs with VLAN stripping information
+      - Added new log messages when validating RSS/DRSS parameters
+      - Fixed improper handling of RxITR and TxITR parameters
+      - Changed maximum number of MAC filters per Virtual Function (VF) from 8 to 16
+      - Fixed issue with setting 2.5Gb/5Gb speed on Carlsville adapters
+      - Removed 'Device 0xDEVICE_ID is not configured as ENS' logs appearing after reset
+      - Added missing information about maximum number of RSS queues in system log
+      - Fixed issue with unloading the driver
+
+
+- Driver Version: 2.1.5.0
+   Hardware Supported: Intel(R) Ethernet Controllers X710, XL710, XXV710, and X722 family
+   Supported ESXi releases: 6.7 and 7.0
+   New Features Supported:
+      - Added support for simplified hardware access for NVM Update
+   New Hardware Supported:
+      - None
+   Bug Fixes:
+      - Fixed improper number of RSS queues in system's log.
+      - Removed VF's ability to send LFC pause frames which could cause denial of service.
+      - Removed 'VSI not found with vsiid: XX' logs appearing after reset.
+      - Fixed PSOD when using x722 adapters with total port shutdown feature.
+      - Fixed issue with changing link speed on adapter that is in down state.
+      - Fixed issue with long time needed for adapter to go up after reloading the driver.
+
+

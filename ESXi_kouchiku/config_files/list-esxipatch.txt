@@ -1,0 +1,9 @@
+7.0u3 PATCHFILENAME　　　　　　　	MD5SUM					Profile 
+==============================================================================================================
+VMware-ESXi-7.0U3d-19482537-depot.zip	22fca2ef1dc38f490d1635926a86eb02	ESXi-7.0U3d-19482537-standard
+VMware-ESXi-7.0U3e-19898904-depot.zip	6665975868abdb1758c74fcdcd1dfe89	ESXi-7.0U3e-19898904-standard
+VMware-ESXi-7.0U3f-20036589-depot.zip	8543deb5d6d71bc7cc6d6c21977b1181	ESXi-7.0U3f-20036589-standard
+VMware-ESXi-7.0U3g-20328353-depot.zip	8aa11dbbc5b2089d443437eaa3837e79	ESXi-7.0U3g-20328353-standard
+VMware-ESXi-7.0U3i-20842708-depot.zip	7ec976758701d4287393aebcc2c5d55c	ESXi-7.0U3i-20842708-standard
+VMware-ESXi-7.0U3j-21053776-depot.zip	7f67b843759aacc1a05d2074149bcc9b	ESXi-7.0U3j-21053776-standard
+VMware-ESXi-7.0U3k-21313628-depot.zip	5de990d0ac9f9a2d0be05e75a4fc1595	ESXi-7.0U3k-21313628-standard

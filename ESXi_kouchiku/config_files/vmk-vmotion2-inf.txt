@@ -1,0 +1,6 @@
+HostName(1) vSwitch(2) PortGroup(3) vMotionIP(4) vMotionSubnet(5) Gateway(6) VLANID(7) VMkernelAdapter(8)
+##Test
+t220rc1 vSwitch0 VMkernel 10.0.0.1 255.255.255.0 10.0.0.254 20 vmk1
+
+##ESXi #VLAN:421 #LAN:vMotion
+hogeserver vSwitch0 VMkernel2 10.XXX.XXX.XXX 255.255.255.0 10.XXX.XXX.XXX 20 vmk2
